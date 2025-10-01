@@ -1,6 +1,60 @@
 using System;
 using System.Collections.Generic;
 
+// Composite Pattern Base ------------------
+abstract class GridComponent
+{
+    public abstract bool IsOccupied(int x, int y);
+    public abstract void Display();
+}
+
+// Leaf --------------------------
+class Obstacle : GridComponent
+{
+    private readonly int x, y;
+    public Obstacle(int x, int y)
+    {
+        this.x = x;
+        this.y = y;
+    }
+    public override bool IsOccupied(int px, int py) => (px == x && py == y);
+    public override void Display()
+    {
+        Console.WriteLine($"Obstacle at ({x}, {y})");
+    }
+}
+
+// Composite ------------------------
+class Grid : GridComponent
+{
+    private readonly int width, height;
+    private readonly List<GridComponent> components = new List<GridComponent>();
+    public Grid(int width, int height)
+    {
+        this.width = width;
+        this.height = height;
+    }
+
+    public void Add(GridComponent component) => components.Add(component);
+    public override bool IsOccupied(int x, int y)
+    {
+        foreach (var c in components)
+        {
+            if (c.IsOccupied(x, y)) return true;
+        }
+        return false;
+    }
+
+    public bool IsInside(int x, int y) => x >= 0 && x < width && y >= 0 && y < height;
+    public bool IsValid(int x, int y) => IsInside(x, y) && !IsOccupied(x, y);
+    public override void Display()
+    {
+        Console.WriteLine($"Grid: {width} x {height}");
+        foreach (var c in components) c.Display();
+    }
+}
+
+// Directions -----------------
 abstract class Direction
 {
     public abstract void Move(Rover rover, Grid grid);
@@ -53,6 +107,7 @@ class West : Direction
     public override string Name => "West";
 }
 
+// Command Pattern ------------------------
 interface ICommand
 {
     void Execute(Rover rover, Grid grid);
@@ -73,6 +128,7 @@ class RightCommand : ICommand
     public void Execute(Rover rover, Grid grid) => rover.Direction = rover.Direction.Right();
 }
 
+// Rover ----------------------
 class Rover
 {
     public int X { get; set; }
@@ -88,44 +144,23 @@ class Rover
 
     public string Status(Grid grid)
     {
-        string obstacleMsg = grid.HasObstacle(X, Y) ? "Obstacle detected." : "No Obstacles detected.";
+        string obstacleMsg = grid.IsOccupied(X, Y) ? "Obstacle detected." : "No Obstacles detected.";
         return $"Rover is at ({X}, {Y}) facing {Direction.Name}. {obstacleMsg}";
     }
 }
 
-class Grid
-{
-    private readonly int width, height;
-    private readonly HashSet<string> obstacles;
-
-    public Grid(int width, int height, HashSet<string> obstacles)
-    {
-        this.width = width;
-        this.height = height;
-        this.obstacles = obstacles;
-    }
-
-    public bool IsValid(int x, int y)
-    {
-        return x >= 0 && x < width &&
-               y >= 0 && y < height &&
-               !obstacles.Contains($"{x},{y}");
-    }
-
-    public bool HasObstacle(int x, int y) => obstacles.Contains($"{x},{y}");
-}
-
+// Program -----------------------
 class Program
 {
     static void Main()
     {
-        // Grid size
         Console.Write("Enter grid width: ");
         int width = int.Parse(Console.ReadLine());
         Console.Write("Enter grid height: ");
         int height = int.Parse(Console.ReadLine());
 
-        // Starting position
+        var grid = new Grid(width, height);
+
         Console.Write("Enter starting X: ");
         int startX = int.Parse(Console.ReadLine());
         Console.Write("Enter starting Y: ");
@@ -142,21 +177,19 @@ class Program
             _ => throw new ArgumentException("Invalid direction")
         };
 
-        // Obstacles
         Console.Write("Enter number of obstacles: ");
         int obsCount = int.Parse(Console.ReadLine());
-        var obstacles = new HashSet<string>();
         for (int i = 0; i < obsCount; i++)
         {
             Console.Write($"Enter obstacle {i + 1} (x y): ");
             var parts = Console.ReadLine().Split();
-            obstacles.Add($"{parts[0]},{parts[1]}");
+            int ox = int.Parse(parts[0]);
+            int oy = int.Parse(parts[1]);
+            grid.Add(new Obstacle(ox, oy));
         }
 
-        var grid = new Grid(width, height, obstacles);
         var rover = new Rover(startX, startY, startDir);
 
-        // Commands
         Console.Write("Enter commands (M/L/R without spaces): ");
         string commandStr = Console.ReadLine().ToUpper();
         var commands = new List<ICommand>();
@@ -172,13 +205,11 @@ class Program
             });
         }
 
-        // Execute
         foreach (var cmd in commands)
         {
             rover.Execute(cmd, grid);
         }
 
-        // Output
         Console.WriteLine($"Final Position: ({rover.X}, {rover.Y}, {rover.Direction.Name[0]})");
         Console.WriteLine($"Status Report: {rover.Status(grid)}");
     }
